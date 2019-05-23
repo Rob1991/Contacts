@@ -1,8 +1,14 @@
 package am.aca.contacts.fragment;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.LinearLayoutManager;
@@ -10,51 +16,34 @@ import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageButton;
+import android.widget.Toast;
+
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
 
 import am.aca.contacts.R;
-import am.aca.contacts.activity.MainActivity;
 import am.aca.contacts.adapter.RecyclerAdapter;
+import am.aca.contacts.model.Contact;
 
-import static am.aca.contacts.activity.MainActivity.sContacts;
 
-
-/**
- * A simple {@link Fragment} subclass.
- * Activities that contain this fragment must implement the
- * {@link ContactsFragment.OnFragmentInteractionListener} interface
- * to handle interaction events.
- * Use the {@link ContactsFragment#newInstance} factory method to
- * create an instance of this fragment.
- */
 public class ContactsFragment extends Fragment {
-    // TODO: Rename parameter arguments, choose names that match
-    // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
     private static final String ARG_PARAM1 = "param1";
     private static final String ARG_PARAM2 = "param2";
-
-    // TODO: Rename and change types of parameters
+    public static String FRAGMENT_TITLE = "Contacts";
+    private static Set<Contact> sContacts = new HashSet<>();
     private String mParam1;
     private String mParam2;
+    private Cursor cursor;
+    private String id, name, phoneNumber;
 
     public ContactsFragment() {
-        // Required empty public constructor
+
     }
 
-    /**
-     * Use this factory method to create a new instance of
-     * this fragment using the provided parameters.
-     *
-     * @param param1 Parameter 1.
-     * @param param2 Parameter 2.
-     * @return A new instance of fragment ContactsFragment.
-     */
-    // TODO: Rename and change types and number of parameters
-    public static ContactsFragment newInstance(String param1, String param2) {
+    public static ContactsFragment newInstance() {
         ContactsFragment fragment = new ContactsFragment();
         Bundle args = new Bundle();
-        args.putString(ARG_PARAM1, param1);
-        args.putString(ARG_PARAM2, param2);
         fragment.setArguments(args);
         return fragment;
     }
@@ -62,6 +51,7 @@ public class ContactsFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         if (getArguments() != null) {
             mParam1 = getArguments().getString(ARG_PARAM1);
             mParam2 = getArguments().getString(ARG_PARAM2);
@@ -69,26 +59,75 @@ public class ContactsFragment extends Fragment {
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
-        // Inflate the layout for this fragment
-        View v=inflater.inflate(R.layout.fragment_contacts, container, false);
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 
-
-        return v;
+        return inflater.inflate(R.layout.fragment_contacts, container, false);
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        RecyclerView recyclerView=view.findViewById(R.id.recyclerViewContact);
-        RecyclerAdapter recyclerAdapter=new RecyclerAdapter(sContacts);
-     recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        recyclerView.setAdapter(recyclerAdapter);
-
+        isEnableRuntimePermission();
 
     }
 
-// TODO: Rename method, update argument and hook method into UI event
+    public void GetContactsIntoArrayList(View view) {
+
+        cursor = view.getContext().getContentResolver().query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, null, null, null);
+
+        while (Objects.requireNonNull(cursor).moveToNext()) {
+            Contact mContact = new Contact();
+            id = cursor.getString(cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID));
+            name = cursor.getString(cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME));
+            phoneNumber = cursor.getString(cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER));
+            mContact.setId(id);
+            mContact.setName(name);
+            mContact.setPhone(phoneNumber);
+            sContacts.add(mContact);
+        }
+
+        RecyclerView recyclerView = view.findViewById(R.id.recyclerViewContact);
+        RecyclerAdapter recyclerAdapter = new RecyclerAdapter(sContacts);
+        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        recyclerView.setAdapter(recyclerAdapter);
+
+        cursor.close();
+
+    }
+
+    public void isEnableRuntimePermission() {
+
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(Objects.requireNonNull(getActivity()),
+                    Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+
+                ActivityCompat.requestPermissions(getActivity(), new String[]{Manifest.permission.READ_CONTACTS}, 1);
+            } else {
+                GetContactsIntoArrayList(getView());
+            }
+
+        } else {
+            GetContactsIntoArrayList(getView());
+        }
+
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode) {
+            case 1: {
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                    GetContactsIntoArrayList(getView());
+                } else {
+                    Toast.makeText(getContext(), "Please give your permission.", Toast.LENGTH_LONG).show();
+                }
+                break;
+            }
+        }
+    }
 }
